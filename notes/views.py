@@ -14,9 +14,11 @@ class TaskViewSet(viewsets.ModelViewSet):
         serializer.save(user=self.request.user)
 
     def get_queryset(self):
-        if not self.request.user.is_authenticated:
-            return Task.objects.none()
-        if self.request.user.is_superuser:
-            return Task.objects.all()
-        return Task.objects.filter(user=self.request.user)
-    
+        if self.action == 'list':
+            if not self.request.user.is_authenticated:
+                return Task.objects.none()
+            if self.request.user.is_superuser:
+                return Task.objects.all()
+            return Task.objects.filter(user=self.request.user)
+        return Task.objects.all()
+        
