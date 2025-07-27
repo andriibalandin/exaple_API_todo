@@ -109,7 +109,7 @@ SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
     'BLACKLIST_AFTER_ROTATION': True,
-    'ALGORITM': 'HS256',
+    'ALGORITHM': 'HS256',
     'SIGNING_KEY': os.getenv('SECRET_KEY', 'default-secret-key-for-testing'),
     'AUTH_HEADER_TYPES': ('Bearer',),
 }

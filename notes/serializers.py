@@ -14,12 +14,12 @@ class TaskSerializer(serializers.ModelSerializer):
 
 
 class RegistrationSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, min_lenght=8)
+    password = serializers.CharField(write_only=True, min_length=8)
     token = serializers.SerializerMethodField()
 
     class Meta: 
         model = User
-        fields = ['id', 'email', 'password', 'token']
+        fields = ['id', 'username', 'password', 'token']
 
     def get_token(self, obj):
         refresh = RefreshToken.for_user(obj)
@@ -30,12 +30,12 @@ class RegistrationSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         user = User.objects.create_user(
-            email=validated_data['email'],
+            username=validated_data['username'],
             password=validated_data['password']
         )
         return user
 
     def validate(self, data):
-        if User.objects.filter(email=data['email']).exists():
-            raise serializers.ValidationError('Email already registered')
+        if User.objects.filter(username=data['username']).exists():
+            raise serializers.ValidationError('User with this username already registered')
         return data
