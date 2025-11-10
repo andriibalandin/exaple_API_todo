@@ -18,6 +18,7 @@ services:
     volumes:
       - .:/app
       - ./.env:/app/.env
+      - ./staticfiles:/app/staticfiles
   database:
     image: postgres:17
     environment:

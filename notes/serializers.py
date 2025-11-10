@@ -10,8 +10,15 @@ class TaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = Task
         fields = ['title', 'id', 'description', 'slug', 'user', 'created', 'completed']
-        read_only_fieds = ['slug', 'id', 'user', 'created']
-
+        read_only_fields = ['slug', 'id', 'user', 'created']
+    
+    def update(self, instance, validated_data):
+        instance.title = validated_data.get('title', instance.title)
+        instance.description = validated_data.get('description', instance.description)
+        instance.completed = validated_data.get('completed', instance.completed)
+        instance.save()
+        return instance
+    
 
 class RegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)

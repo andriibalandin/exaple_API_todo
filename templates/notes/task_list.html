@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>My Tasks</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="bg-light">
+<div class="container py-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0">My Tasks</h1>
+        <button id="logout-btn" class="btn btn-outline-danger btn-sm">Logout</button>
+    </div>
+
+    <!-- Форма створення -->
+    <div class="card p-4 mb-4 shadow-sm">
+        <form id="create-form">
+            <div class="row g-3">
+                <div class="col-md-8">
+                    <input type="text" id="new-title" class="form-control" placeholder="What needs to be done?" required>
+                </div>
+                <div class="col-md-3">
+                    <input type="text" id="new-desc" class="form-control" placeholder="Notes (optional)">
+                </div>
+                <div class="col-md-1">
+                    <button type="submit" class="btn btn-success w-100">Add</button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Список завдань -->
+    <div id="tasks-list" class="row g-3"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script>
+    const token = localStorage.getItem('access_token');
+    if (!token) window.location.href = '/ui/login/';
+
+    const tasksList = document.getElementById('tasks-list');
+
+    // === Завантаження ===
+    async function fetchTasks() {
+        try {
+            const { data } = await axios.get('/api/tasks/', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            renderTasks(data.results);
+        } catch (err) {
+            handleError(err);
+        }
+    }
+
+    // === Рендер ===
+    function renderTasks(tasks) {
+        if (!tasks.length) {
+            tasksList.innerHTML = `<div class="col-12"><p class="text-muted text-center">No tasks yet. Create one!</p></div>`;
+            return;
+        }
+
+        tasksList.innerHTML = tasks.map(task => `
+            <div class="col-md-6 col-lg-4">
+                <div class="task-card p-3 rounded shadow-sm">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h6 class="editable title mb-0 ${task.completed ? 'completed' : ''}"
+                            data-type="title" data-slug="${task.slug}" data-value="${e(task.title)}">
+                            ${task.title}
+                        </h6>
+                        <button class="btn btn-danger btn-sm opacity-75" onclick="deleteTask('${task.slug}')">Delete</button>
+                    </div>
+
+                    <small class="editable desc text-muted d-block mb-2"
+                           data-type="description" data-slug="${task.slug}"
+                           data-value="${e(task.description || '')}">
+                        ${task.description || 'No description'}
+                    </small>
+
+                    <span class="badge ${task.completed ? 'bg-success' : 'bg-secondary'} editable status"
+                          data-type="completed" data-slug="${task.slug}"
+                          data-value="${task.completed}">
+                        ${task.completed ? 'Completed' : 'Not Completed'}
+                    </span>
+                </div>
+            </div>
+        `).join('');
+
+        document.querySelectorAll('.editable').forEach(el => el.addEventListener('click', startEditing));
+    }
+
+    // === Редагування ===
+    function startEditing(e) {
+        const el = e.target;
+        if (el.classList.contains('editing')) return;
+
+        const type = el.dataset.type;
+        const slug = el.dataset.slug;
+        const value = el.dataset.value;
+
+        if (type === 'completed') {
+            const newVal = value === 'true' ? false : true;
+            updateTask(slug, { completed: newVal });
+            return;
+        }
+
+        const input = document.createElement(type === 'title' ? 'input' : 'textarea');
+        input.className = 'form-control form-control-sm editing';
+        input.value = value;
+        if (type === 'description') input.rows = 2;
+
+        el.innerHTML = '';
+        el.appendChild(input);
+        el.classList.add('editing');
+        input.focus();
+
+        const save = () => {
+            const newVal = input.value.trim();
+            const display = newVal || (type === 'title' ? 'Untitled' : 'No description');
+            el.innerHTML = display;
+            el.dataset.value = newVal;
+            el.classList.remove('editing');
+            if (type === 'title') {
+                const statusEl = el.closest('.task-card').querySelector('.status');
+                el.classList.toggle('completed', statusEl.dataset.value === 'true');
+            }
+            updateTask(slug, { [type]: newVal });
+        };
+
+        input.addEventListener('blur', save);
+        input.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && type !== 'description') save();
+            if (e.key === 'Escape') {
+                el.innerHTML = value || '—';
+                el.classList.remove('editing');
+            }
+        });
+    }
+
+    // === Оновлення ===
+    async function updateTask(slug, data) {
+        try {
+            const titleEl = document.querySelector(`.editable[data-slug="${slug}"][data-type="title"]`);
+            const currentTitle = titleEl ? titleEl.dataset.value : 'Untitled';
+            const payload = { title: currentTitle, ...data };
+
+            await axios.put(`/api/tasks/${slug}/`, payload, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            // Оновлюємо UI
+            if (data.completed !== undefined) {
+                const statusEl = document.querySelector(`.editable[data-slug="${slug}"][data-type="completed"]`);
+                const titleEl = document.querySelector(`.editable[data-slug="${slug}"][data-type="title"]`);
+                statusEl.dataset.value = data.completed;
+                statusEl.textContent = data.completed ? 'Completed' : 'Not Completed';
+                statusEl.className = data.completed ? 'badge bg-success editable status' : 'badge bg-secondary editable status';
+                titleEl.classList.toggle('completed', data.completed);
+            }
+            if (data.title) {
+                const el = document.querySelector(`.editable[data-slug="${slug}"][data-type="title"]`);
+                el.dataset.value = data.title;
+                el.textContent = data.title || 'Untitled';
+            }
+            if (data.description !== undefined) {
+                const el = document.querySelector(`.editable[data-slug="${slug}"][data-type="description"]`);
+                el.dataset.value = data.description;
+                el.textContent = data.description || 'No description';
+            }
+        } catch (err) {
+            alert('Error: ' + (err.response?.data?.title?.[0] || err.message));
+            fetchTasks();
+        }
+    }
+
+    // === Створення ===
+    document.getElementById('create-form').addEventListener('submit', async e => {
+        e.preventDefault();
+        const title = document.getElementById('new-title').value.trim();
+        const desc = document.getElementById('new-desc').value.trim();
+        if (!title) return alert('Title required!');
+
+        try {
+            await axios.post('/api/tasks/', { title, description: desc }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            document.getElementById('new-title').value = '';
+            document.getElementById('new-desc').value = '';
+            fetchTasks();
+        } catch (err) {
+            alert('Error: ' + (err.response?.data?.title?.[0] || err.message));
+        }
+    });
+
+    // === Видалення ===
+    window.deleteTask = async slug => {
+        if (!confirm('Delete task?')) return;
+        try {
+            await axios.delete(`/api/tasks/${slug}/`, { headers: { Authorization: `Bearer ${token}` } });
+            fetchTasks();
+        } catch (err) {
+            alert('Error deleting');
+        }
+    };
+
+    // === Логаут ===
+    document.getElementById('logout-btn').addEventListener('click', () => {
+        localStorage.clear();
+        window.location.href = '/ui/login/';
+    });
+
+    // === Утиліти ===
+    const e = text => text ? text.replace(/&/g, '&amp;').replace(/</g, '&lt;') : '';
+    const handleError = err => {
+        if (err.response?.status === 401) {
+            localStorage.clear();
+            window.location.href = '/ui/login/';
+        } else {
+            alert('Error: ' + err.message);
+        }
+    };
+
+    // === Старт ===
+    fetchTasks();
+</script>
+</body>
+</html>
